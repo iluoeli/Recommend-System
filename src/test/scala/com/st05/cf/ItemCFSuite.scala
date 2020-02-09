@@ -18,6 +18,15 @@ class ItemCFSuite extends SparkBaseSuite {
     ))
   }
 
+  test("correctness of jaccard-similarity based method") {
+    val cf = new ItemJaccardSimCF()
+    val userWithRecommendations = cf.train(data).collect()
+
+    for ((userId, recmds) <- userWithRecommendations) {
+      println(s"user=$userId\trecommendations=${recmds.mkString(",")}")
+    }
+  }
+
   test("correctness of co-occurrence based method") {
     val cf = new ItemCF()
     val userWithRecommendations = cf.train(data).collect()
@@ -27,7 +36,7 @@ class ItemCFSuite extends SparkBaseSuite {
     }
   }
 
-  test("correctness of cosine similarity based method") {
+  test("correctness of cosine-similarity based method") {
     val cf = new ItemCosineSimCF()
     val userWithRecommendations = cf.train(data).collect()
 

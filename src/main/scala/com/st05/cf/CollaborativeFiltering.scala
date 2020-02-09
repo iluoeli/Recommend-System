@@ -1,5 +1,6 @@
-package cf
+package com.st05.cf
 
+import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Dataset, Row}
 
@@ -7,7 +8,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 // CF
-class CollaborativeFiltering {
+class CollaborativeFiltering extends Logging{
 
   def train(data: RDD[(Int, Int, Float)]): RDD[(Int, Array[(Int, Float)])] = {
     null
@@ -27,23 +28,29 @@ class ItemCF extends CollaborativeFiltering {
     val userRecords = data.map{ case (userId, itemId, rating) => (userId, (itemId, rating)) }
       .groupByKey().persist()
 
+    logWarning(s"number of userRecords: ${userRecords.count()}")
+
     // co-occurrence matrix
     val cooccurMat = userRecords.flatMap{ case (userId, iter) =>
       // making item pairs
       val itemsWithRating = iter.toArray
-      val itemPairsWithFreq = ArrayBuffer[((Int, Int), Int)]()
+      var itemPairsWithFreq = ArrayBuffer[((Int, Int), Int)]()
       for ((item1, _) <- itemsWithRating) {
-        for ((item2, _) <- itemsWithRating) {
+        for ((item2, _) <- itemsWithRating if item2 != item1) {
           val pairWithFreq = ((item1, item2), 1)
-          itemPairsWithFreq :+ pairWithFreq
+          itemPairsWithFreq += pairWithFreq
         }
       }
       itemPairsWithFreq
     }.reduceByKey(_ + _).map{ case ((item1Id, item2Id), freq) => (item1Id, (item2Id, freq))}
 
+//    logWarning(s"co-occurrence matrix: ${cooccurMat.collect().mkString(", ")}")
+
     val itemUserMat = userRecords.flatMap{ case (userId, iter) =>
       iter.map{ case (itemId, rating) => (itemId, (userId, rating))}
     }
+
+//    logWarning(s"item-user matrix: ${itemUserMat.collect().mkString(", ")}")
 
     val userWithRecommendations = itemUserMat.join(cooccurMat).map{ case (item1Id, ((userId, rating), (item2Id, freq))) =>
         val pref = rating * freq
@@ -72,14 +79,16 @@ class ItemCosineSimCF extends CollaborativeFiltering {
     val userRecords = data.map{ case (userId, itemId, rating) => (userId, (itemId, rating)) }
       .groupByKey().persist()
 
+    logWarning(s"number of userRecords: ${userRecords.count()}")
+
     val itemSimMap = userRecords.flatMap{ case (userId, iter) =>
         // making item pairs
         val itemsWithRating = iter.toArray
-        val itemPairsWithRating = ArrayBuffer[((Int, Int), (Float, Float))]()
+        var itemPairsWithRating = ArrayBuffer[((Int, Int), (Float, Float))]()
         for ((item1, rating1) <- itemsWithRating) {
-          for ((item2, rating2) <- itemsWithRating) {
+          for ((item2, rating2) <- itemsWithRating if item2 != item1) {
             val pairWithRating = ((item1, item2), (rating1, rating2))
-            itemPairsWithRating :+ pairWithRating
+            itemPairsWithRating += pairWithRating
           }
         }
         // TODO: optimize
@@ -87,6 +96,7 @@ class ItemCosineSimCF extends CollaborativeFiltering {
     }.groupByKey().map{ case ((item1Id, item2Id), iter) =>
         var cnt = 0
         var (xx, yy, xy) = (1e-6, 1e-6, 0.0) // assign a particle to xx and yy to avoid overflow
+        // TODO: fix the computation of cosine similarity
         for ((rating1, rating2) <- iter) {
           xx += rating1 * rating1
           yy += rating2 * rating2
@@ -94,11 +104,14 @@ class ItemCosineSimCF extends CollaborativeFiltering {
           cnt += 1
         }
         val sim = xy / math.sqrt(xx * yy)
+        println(s"$item1Id, $item2Id, sim=$sim")
         (item1Id, (item2Id, sim, cnt))
     }.groupByKey().map{ case (itemId, iter) =>
         val topLinked = iter.toArray.sortBy(-_._2).take(10) // k-nearest neighbor
         (itemId, topLinked)
     }.collectAsMap()
+
+    logWarning(s"item similarity map: ${itemSimMap.mkString(", ")}")
 
     // find candidates
     val sc = data.sparkContext
@@ -110,9 +123,10 @@ class ItemCosineSimCF extends CollaborativeFiltering {
       val candToSim = mutable.HashMap[Int, Float]()   // map candidates to similarity
       // TODO: drop purchased item ?
       for ((purchasedItemId, rating) <- iter) {
-        for ((candItemId, sim, _) <- itemSimMap(purchasedItemId)) {
-          candToConf(candItemId) += sim * rating
-          candToSim(candItemId) += sim
+        val neighbours = itemSimMap.getOrElse(purchasedItemId, Array())
+        for ((candItemId, sim, _) <- neighbours) {
+          candToConf(candItemId) = (candToConf.getOrElse(candItemId, 0.0f) + sim.toFloat * rating)
+          candToSim(candItemId) = candToSim.getOrElse(candItemId, 0.0f) + sim.toFloat
         }
       }
 

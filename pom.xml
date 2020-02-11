@@ -30,14 +30,14 @@
         <groupId>org.apache.spark</groupId>
         <artifactId>spark-core_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
-        <scope>provided</scope>
+<!--        <scope>provided</scope>-->
     </dependency>
 
     <dependency>
         <groupId>org.apache.spark</groupId>
         <artifactId>spark-mllib_${scala.binary.version}</artifactId>
         <version>${spark.version}</version>
-        <scope>provided</scope>
+<!--        <scope>provided</scope>-->
     </dependency>
 
     <!-- Unify the scala version !-->
@@ -45,25 +45,25 @@
         <groupId>org.scala-lang</groupId>
         <artifactId>scala-compiler</artifactId>
         <version>${scala.version}</version>
-        <scope>provided</scope>
+<!--        <scope>provided</scope>-->
     </dependency>
     <dependency>
         <groupId>org.scala-lang</groupId>
         <artifactId>scala-reflect</artifactId>
         <version>${scala.version}</version>
-        <scope>provided</scope>
+<!--        <scope>provided</scope>-->
     </dependency>
     <dependency>
         <groupId>org.scala-lang</groupId>
         <artifactId>scala-library</artifactId>
         <version>${scala.version}</version>
-        <scope>provided</scope>
+<!--        <scope>provided</scope>-->
     </dependency>
     <dependency>
         <groupId>org.scala-lang</groupId>
         <artifactId>scala-actors</artifactId>
         <version>${scala.version}</version>
-        <scope>provided</scope>
+<!--        <scope>provided</scope>-->
     </dependency>
 </dependencies>
 

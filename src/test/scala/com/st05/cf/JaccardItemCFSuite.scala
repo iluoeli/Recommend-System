@@ -20,7 +20,7 @@ class JaccardItemCFSuite extends SparkBaseSuite {
   }
 
   test("correctness of jaccard-similarity based method") {
-    val cf = new JaccardItemCF()
+    val cf = new JaccardItemCF[Int, Int]()
     val userWithRecommendations = cf.train(data).collect()
 
     for ((userId, recmds) <- userWithRecommendations) {

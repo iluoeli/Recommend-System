@@ -3,16 +3,18 @@ package com.st05.cf
 import org.apache.spark.internal.Logging
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
+import spire.ClassTag
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 
-class JaccardItemCF(private val numRecommendations: Int) extends Logging with Serializable {
+class JaccardItemCF[U : ClassTag : Ordering, V : ClassTag : Ordering](
+      private val numRecommendations: Int) extends Logging with Serializable {
 
     def this() = this(10)
 
-    def train(data: RDD[(Int, Int, Float)]): RDD[(Int, Array[(Int, Float)])] = {
+    def train(data: RDD[(U, V, Float)]): RDD[(U, Array[(V, Float)])] = {
       val sc = data.sparkContext
       // handle persist
       val storageLevel = data.getStorageLevel
@@ -34,7 +36,7 @@ class JaccardItemCF(private val numRecommendations: Int) extends Logging with Se
       val itemSimMap = userRecords.flatMap{ case (_, iter) =>
         // making item pairs
         val itemsWithRating = iter.toArray
-        var itemPairsWithFreq = ArrayBuffer[((Int, Int), Int)]()
+        var itemPairsWithFreq = ArrayBuffer[((V, V), Int)]()
         for ((item1, _) <- itemsWithRating) {
           for ((item2, _) <- itemsWithRating if item2 != item1) {
             val pairWithFreq = ((item1, item2), 1)
@@ -58,10 +60,10 @@ class JaccardItemCF(private val numRecommendations: Int) extends Logging with Se
 
       val userWithRecommendations = userRecords.map{ case (userId, iter) =>
         val itemSimMap = itemSimMapBC.value
-        val candToConf = mutable.HashMap[Int, Float]()  // map candidates to confidence
+        val candToConf = mutable.HashMap[V, Float]()  // map candidates to confidence
         // TODO: drop purchased item ?
         for ((purchasedItemId, rating) <- iter) {
-          val neighbours = itemSimMap.getOrElse(purchasedItemId, Array())
+          val neighbours = itemSimMap.getOrElse(purchasedItemId, Array[(V, Float)]())
           for ((candItemId, sim) <- neighbours) {
             // TODO: min-heap
             candToConf(candItemId) = math.max(candToConf.getOrElse(candItemId, 0.0f), sim.toFloat * rating)
